@@ -1,0 +1,9 @@
+# Charcoal browser converter
+
+Only the CSS inside wasm/index.html changes. All other HTML bytes, application JavaScript, Wasm wrapper, build files, converter sources, options, document text and downloadable output bytes are preserved. The headless Haskell CLI/library and generated documents receive no cosmetic policy change. The browser's own backgrounds, cards, forms, tabs, hints, loading overlay, buttons, selection/focus and semantic messages use the canonical charcoal roles, independent of system night mode.
+
+The actual maintained Ithon frontend d6e83969f82512e920fb17b44326cb54f31d015c checks the complete check.pi module before browser dependency installation and again at execution. Explicit bytes, text, paths, booleans and address tuples constrain foreign Playwright calls. Current Idriç lacks an admitted browser-driver binding; no ordinary Python fallback is authored. Checked/lowered receipts are retained. The existing unversioned Petite Vue and versioned fflate/WASI remote imports remain unchanged; their availability remains an external dependency.
+
+Acceptance requires the actual Petite Vue-mounted interface, not a static template. It observes empty/format-loading controls, real tab changes, Unicode input, enabled Convert state, caret/keyboard focus, all sampled ordinary text contrast and actual caught example-upload/runtime-unavailable error under both system schemes at phone/desktop widths. A real white-body mutation must fail the same root guard.
+
+This source tree contains no pandoc.wasm binary. The browser lane deliberately reports Wasm compilation/conversion, document rendering and downloads NOT_RUN. No mock converter, foreign binary, fabricated formats or successful conversion is substituted. The test uses the real missing-runtime failure path. Current browser and inherited Haskell CI results are pending. No publication, deployment, external transmission of documents, installed application replacement or release occurs.

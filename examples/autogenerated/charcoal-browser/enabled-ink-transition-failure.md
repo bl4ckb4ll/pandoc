@@ -1,0 +1,3 @@
+# Actual enabled-text contrast failure
+
+Run42032748793 records the exact newly enabled Convert control: foreground rgb150,150,150 on rgb56,56,56, contrast3.9642907708273474. Its inherited transition:all animated the disabled85 ink toward F4 after the control was already enabled. The product now animates only background-color for Convert, making enabled F4 ink immediate while preserving the restrained hover transition. The actual contrast guard, 4.5 threshold, enabled/disabled distinction and failure diagnostics remain unchanged. No settling delay is added to conceal the ink transition. The failed source and screenshot remain in that run's immutable history/artifact.

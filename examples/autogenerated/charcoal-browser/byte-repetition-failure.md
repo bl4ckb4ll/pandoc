@@ -1,0 +1,3 @@
+# Preserved Ithon admission failure
+
+Run42032161523 stopped in actual Ithon preflight before dependency installation: bytes multiplied by int is not statically admitted. The test requires a fixed 22-byte empty ZIP fixture, not runtime byte repetition. The fixture is now an explicit byte literal containing the identical PK0506 end-of-central-directory plus 18 zero bytes. The rejected full program is retained. Browser/engine behavior, runtime-unavailable expectations and assertions are unchanged. No ordinary Python fallback, Ithon checker bypass or fabricated conversion is introduced. The missing general bytes-repeat operator is exposed for future language work; this fixed-data fixture does not justify broad compiler changes.
