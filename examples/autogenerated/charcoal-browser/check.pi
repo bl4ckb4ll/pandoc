@@ -85,7 +85,7 @@ try:
                 page.get_by_role("button", name=tab, exact=True).click()
                 verify(page)
             # This source tree does not contain pandoc.wasm. Exercise its real caught upload failure.
-            page.locator('input[type="file"][accept=".zip"]').set_input_files({"name":"unavailable-runtime.zip", "mimeType":"application/zip", "buffer":b"PK\x05\x06"+b"\0"*18})
+            page.locator('input[type="file"][accept=".zip"]').set_input_files({"name":"unavailable-runtime.zip", "mimeType":"application/zip", "buffer":b"PK\x05\x06\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"})
             page.locator(".message.error").wait_for(state="visible")
             require("Failed to load example:" in as_text(page.locator(".message.error").inner_text()), "ACTUAL-UNAVAILABLE-RUNTIME-ERROR")
             require(as_text(page.locator(".message.error").evaluate("e=>getComputedStyle(e).backgroundColor")) == "rgb(47, 47, 47)", "ACTUAL-ERROR-SURFACE")
