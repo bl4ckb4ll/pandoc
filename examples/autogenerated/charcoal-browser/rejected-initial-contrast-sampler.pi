@@ -1,0 +1,104 @@
+"""Observe the actual Pandoc browser UI while its unbuilt Wasm runtime is unavailable."""
+from pathlib import Path
+from builtins import ValueError, bool, str, int, object, list
+import hashlib
+import http.server
+import functools
+import threading
+import json
+from playwright.sync_api import sync_playwright
+
+def as_text(value ∈ object) → str:
+    return str(value)
+
+def require(condition ∈ bool, reason ∈ str) → None:
+    if not condition:
+        raise ValueError(reason)
+
+def root_is_charcoal(page ∈ object) → bool:
+    return bool(page.evaluate("getComputedStyle(document.body).backgroundColor==='rgb(33, 33, 33)' && getComputedStyle(document.body).color==='rgb(244, 244, 244)' && getComputedStyle(document.documentElement).colorScheme==='dark'"))
+
+def verify(page ∈ object) → None:
+    require(root_is_charcoal(page), "ROOT-CHARCOAL")
+    require(bool(page.evaluate("""() => [...document.querySelectorAll('.card,.card-header,.loading-box')].every(e=>getComputedStyle(e).backgroundColor==='rgb(47, 47, 47)')""")), "CARDS-AND-LOADING-BOX")
+    require(bool(page.evaluate("""() => {
+      const lum = c => {
+        const a=c.match(/[0-9.]+/g).slice(0,3).map(Number).map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4);
+        return a[0]*.2126+a[1]*.7152+a[2]*.0722;
+      };
+      const visible=e=>e.getClientRects().length && getComputedStyle(e).visibility!=='hidden';
+      const nodes=[...document.querySelectorAll('label,button,a,input,select,textarea,p,.hint,.tagline,.card-header,.message')].filter(visible).filter(e=>!e.disabled);
+      return nodes.length>15 && nodes.every(e=>{
+        const fg=lum(getComputedStyle(e).color);
+        let p=e, background=getComputedStyle(p).backgroundColor;
+        while(background==='rgba(0, 0, 0, 0)' && p.parentElement){p=p.parentElement;background=getComputedStyle(p).backgroundColor;}
+        const bg=lum(background);
+        return (Math.max(fg,bg)+.05)/(Math.min(fg,bg)+.05)>=4.5;
+      });
+    }""")), "ACTUAL-ORDINARY-TEXT-AA")
+
+root ∈ Path ← Path.cwd()
+output ∈ Path ← root.joinpath("build/charcoal")
+output.mkdir(parents=True, exist_ok=True)
+for name in ["wasm/index.js", "wasm/pandoc.js", "wasm/Makefile"]:
+    current ∈ bytes ← root.joinpath(name).read_bytes()
+    previous ∈ bytes ← root.joinpath(".baseline", name).read_bytes()
+    require(current == previous, "ENGINE-AND-APP-BEHAVIOR-UNCHANGED-" + name)
+current_html ∈ str ← root.joinpath("wasm/index.html").read_text(encoding="utf-8")
+previous_html ∈ str ← root.joinpath(".baseline/wasm/index.html").read_text(encoding="utf-8")
+current_parts ∈ list[str] ← current_html.split("<style>", 1)
+previous_parts ∈ list[str] ← previous_html.split("<style>", 1)
+current_after ∈ list[str] ← current_parts[1].split("</style>", 1)
+previous_after ∈ list[str] ← previous_parts[1].split("</style>", 1)
+require(current_parts[0] == previous_parts[0] and current_after[1] == previous_after[1], "ALL-NONSTYLE-HTML-BYTES-UNCHANGED")
+handler ∈ object ← functools.partial(http.server.SimpleHTTPRequestHandler, directory=as_text(root))
+server ∈ object ← http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+worker ∈ object ← threading.Thread(target=server.serve_forever, daemon=True)
+worker.start()
+address_parts ∈ tuple[str, int] ← server.server_address
+address ∈ str ← "http://127.0.0.1:" + as_text(address_parts[1])
+driver ∈ object ← sync_playwright().start()
+browser ∈ object ← driver.chromium.launch()
+try:
+    for scheme in ["light", "dark"]:
+        for width in [390, 1280]:
+            context ∈ object ← browser.new_context(color_scheme=scheme, viewport={"width": width, "height": 1000})
+            page ∈ object ← context.new_page()
+            page.goto(address + "/wasm/index.html", wait_until="domcontentloaded")
+            # A raw unmounted template is not acceptance: require the real Petite Vue binding.
+            page.wait_for_function("typeof PetiteVue!=='undefined' && document.querySelector('.convert-btn').disabled")
+            require(bool(page.locator("#input-format").is_disabled()), "REAL-UNAVAILABLE-FORMAT-STATE")
+            verify(page)
+            prefix ∈ str ← as_text(width) + "-" + scheme
+            page.screenshot(path=as_text(output.joinpath(prefix + "-empty.png")), full_page=True)
+            page.get_by_role("button", name="Paste Text", exact=True).click()
+            page.locator("textarea").fill("# Unicode λğ✓\n\nRetain document text exactly.")
+            require(as_text(page.locator("textarea").input_value()) == "# Unicode λğ✓\n\nRetain document text exactly.", "UNICODE-DOCUMENT-ENTRY")
+            require(bool(page.get_by_role("button", name="Convert", exact=True).is_enabled()), "ACTUAL-INPUT-ENABLES-CONVERT")
+            page.keyboard.press("Tab")
+            page.locator("textarea").focus()
+            require(as_text(page.locator("textarea").evaluate("e=>getComputedStyle(e).outlineColor")) == "rgb(180, 180, 180)", "FOCUS-INK")
+            require(as_text(page.locator("textarea").evaluate("e=>getComputedStyle(e).caretColor")) == "rgb(244, 244, 244)", "CARET-INK")
+            verify(page)
+            page.screenshot(path=as_text(output.joinpath(prefix + "-unicode-and-focus.png")), full_page=True)
+            for tab in ["Headings", "Media", "Citations", "Math", "Code", "General"]:
+                page.get_by_role("button", name=tab, exact=True).click()
+                verify(page)
+            # This source tree does not contain pandoc.wasm. Exercise its real caught upload failure.
+            page.locator('input[type="file"][accept=".zip"]').set_input_files({"name":"unavailable-runtime.zip", "mimeType":"application/zip", "buffer":b"PK\x05\x06\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"})
+            page.locator(".message.error").wait_for(state="visible")
+            require("Failed to load example:" in as_text(page.locator(".message.error").inner_text()), "ACTUAL-UNAVAILABLE-RUNTIME-ERROR")
+            require(as_text(page.locator(".message.error").evaluate("e=>getComputedStyle(e).backgroundColor")) == "rgb(47, 47, 47)", "ACTUAL-ERROR-SURFACE")
+            require(as_text(page.locator(".message.error").evaluate("e=>getComputedStyle(e).color")) == "rgb(255, 180, 171)", "ACTUAL-ERROR-INK")
+            verify(page)
+            page.screenshot(path=as_text(output.joinpath(prefix + "-runtime-unavailable.png")), full_page=True)
+            page.evaluate("document.body.style.backgroundColor='white'")
+            require(not root_is_charcoal(page), "ACTUAL-WHITE-ROOT-MUTANT-REJECTED")
+            context.close()
+    report ∈ str ← json.dumps({"actual_bound_browser_interface": "PASS", "both_system_schemes": "PASS", "phone_and_desktop": "PASS", "actual_empty_tabs_unicode_focus_and_runtime_error": "PASS", "ordinary_text_AA": "PASS", "nonstyle_HTML_and_engine_sources": "UNCHANGED", "white_root_negative": "PASS", "source_sha256": hashlib.sha256(current_html.encode("utf-8")).hexdigest(), "Wasm_compilation_and_conversion": "NOT_RUN_RUNTIME_NOT_IN_SOURCE_TREE", "document_rendering_and_download": "NOT_RUN", "physical_C67": "NOT_RUN"}, sort_keys=True, indent=2)
+    output.joinpath("receipt.json").write_text(report + "\n", encoding="utf-8")
+    print(report)
+finally:
+    browser.close()
+    driver.stop()
+    server.shutdown()

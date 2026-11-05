@@ -21,21 +21,28 @@ def root_is_charcoal(page ∈ object) → bool:
 def verify(page ∈ object) → None:
     require(root_is_charcoal(page), "ROOT-CHARCOAL")
     require(bool(page.evaluate("""() => [...document.querySelectorAll('.card,.card-header,.loading-box')].every(e=>getComputedStyle(e).backgroundColor==='rgb(47, 47, 47)')""")), "CARDS-AND-LOADING-BOX")
-    require(bool(page.evaluate("""() => {
+    page.wait_for_function("document.querySelector('.convert-btn').disabled || getComputedStyle(document.querySelector('.convert-btn')).backgroundColor==='rgb(56, 56, 56)'")
+    contrast_failures ∈ str ← as_text(page.evaluate("""() => {
       const lum = c => {
         const a=c.match(/[0-9.]+/g).slice(0,3).map(Number).map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4);
         return a[0]*.2126+a[1]*.7152+a[2]*.0722;
       };
       const visible=e=>e.getClientRects().length && getComputedStyle(e).visibility!=='hidden';
       const nodes=[...document.querySelectorAll('label,button,a,input,select,textarea,p,.hint,.tagline,.card-header,.message')].filter(visible).filter(e=>!e.disabled);
-      return nodes.length>15 && nodes.every(e=>{
+      if(nodes.length<=15) return JSON.stringify([{error:'insufficient actual visible text nodes', count:nodes.length}]);
+      const failed=nodes.map(e=>{
         const fg=lum(getComputedStyle(e).color);
         let p=e, background=getComputedStyle(p).backgroundColor;
         while(background==='rgba(0, 0, 0, 0)' && p.parentElement){p=p.parentElement;background=getComputedStyle(p).backgroundColor;}
         const bg=lum(background);
-        return (Math.max(fg,bg)+.05)/(Math.min(fg,bg)+.05)>=4.5;
-      });
-    }""")), "ACTUAL-ORDINARY-TEXT-AA")
+        const ratio=(Math.max(fg,bg)+.05)/(Math.min(fg,bg)+.05);
+        return {ratio, foreground:getComputedStyle(e).color, background, element:e.outerHTML.slice(0,220)};
+      }).filter(e=>e.ratio<4.5);
+      return JSON.stringify(failed);
+    }"""))
+    if contrast_failures != "[]":
+        page.screenshot(path="build/charcoal/contrast-failure.png", full_page=True)
+    require(contrast_failures == "[]", "ACTUAL-ORDINARY-TEXT-AA " + contrast_failures)
 
 root ∈ Path ← Path.cwd()
 output ∈ Path ← root.joinpath("build/charcoal")
